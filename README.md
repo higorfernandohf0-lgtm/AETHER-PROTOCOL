@@ -1,3 +1,4 @@
+cat << 'EOF' > README.md
 # AETHER PROTOCOL
 
 **Upgradeable DeFi Vault & Risk Management Infrastructure**
@@ -71,12 +72,42 @@ forge build
 forge test
 📄 License
 MIT
+EOF
 
 text
 
-### 🚀 O que fazer agora:
-1. Cole isso no GitHub (substituindo o texto que está lá).
-2. Clique em **"Commit changes..."**.
-3. Uma mensagem de commit como `docs: add complete README with Sepolia addresses` fica ótima.
+---
 
-Quando terminar, me avise que o portfólio está oficialmente atualizado. Depois disso, partimos para o próximo passo do seu plano de 6 meses (visibilidade e networking).
+### 🛠️ Passo 2: Adicionar GitHub Actions (CI/CD)
+
+Vamos criar o arquivo que roda os testes automaticamente. Rode este comando (ele cria a pasta e o arquivo):
+
+```bash
+mkdir -p .github/workflows
+cat << 'EOF' > .github/workflows/test.yml
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build
+        run: forge build
+
+      - name: Run tests
+        run: forge test -vvv
+EOF
