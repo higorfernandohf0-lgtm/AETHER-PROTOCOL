@@ -1,0 +1,12 @@
+# Foundry build artifacts
+out/
+cache/
+broadcast/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies installed through git submodules
+# Keep the submodule references, not their internal files.env
