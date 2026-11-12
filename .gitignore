@@ -10,3 +10,4 @@ broadcast/
 
 # Dependencies installed through git submodules
 # Keep the submodule references, not their internal files.env
+args.txt
