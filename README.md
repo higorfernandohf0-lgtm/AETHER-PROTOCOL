@@ -1,66 +1,82 @@
-## Foundry
+# AETHER PROTOCOL
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+**Upgradeable DeFi Vault & Risk Management Infrastructure**
 
-Foundry consists of:
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-blue)]()
+[![Foundry](https://img.shields.io/badge/Built%20with-Foundry-orange)]()
+[![Tests](https://img.shields.io/badge/Tests-51%20passing-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/Coverage-84.5%25-yellow)]()
+[![Sepolia](https://img.shields.io/badge/Deployed-Sepolia-purple)]()
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+---
 
-## Documentation
+## 📌 Status
 
-https://book.getfoundry.sh/
+| Module | Status | Sepolia Address |
+|--------|--------|-----------------|
+| ERC-4626 Vault | ✅ Implemented & Tested | — |
+| AetherToken (ERC20Votes) | ✅ Deployed | `0xB6127998eb92e233DBC25C008b788e174BAE8d5F` |
+| TimelockController | ✅ Deployed | `0x36b4d40384e974d3067050111cfB5F823FCBf1Ed` |
+| AetherGovernor | ✅ Deployed | `0x3B17E7f41Ec5B84c028d5E94F2F28dC9968a66EC` |
+| Aave V3 Strategy | ✅ Compiled | — |
+| Oracle Guard (Chainlink) | ✅ Compiled | — |
+| Flash Loan Executor | ✅ Compiled | — |
+| Coverage Validation | ✅ 84.5% | — |
+| Audit & Final Deployment | ⬜ Planned | — |
 
-## Usage
+---
 
-### Build
+## 🏗️ Architecture
 
-```shell
-$ forge build
-```
+```mermaid
+graph TD
+    A[ERC-4626 Vault] --> B[UUPS Proxy]
+    A --> C[Oracle Guard - Chainlink]
+    A --> D[Aave V3 Strategy]
+    A --> E[Flash Loan Executor]
+    F[Governance: Token + Governor + Timelock] --> A
+🧪 Test Results
+51 automated tests passing (unit, fuzz, and invariant tests)
 
-### Test
+128,000 invariant handler calls without reverts
 
-```shell
-$ forge test
-```
+84.5% test coverage (lines)
 
-### Format
+Protection against ERC-4626 share inflation via _decimalsOffset()
 
-```shell
-$ forge fmt
-```
+🔐 Security Features
+UUPS upgradeability with Ownable2StepUpgradeable
 
-### Gas Snapshots
+Share inflation protection (_decimalsOffset())
 
-```shell
-$ forge snapshot
-```
+Emergency pause (deposits/mint) while keeping withdrawals available
 
-### Anvil
+Proxy initialization (implementation cannot be initialized directly)
 
-```shell
-$ anvil
-```
+Governance-controlled upgrades via Timelock (2-day delay)
 
-### Deploy
+Chainlink Oracle Guard with staleness and price bounds validation
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+Unit, fuzz, and invariant testing with Foundry
 
-### Cast
+🛠️ Tech Stack
+Solidity 0.8.24 · Foundry · OpenZeppelin · ERC-4626 · UUPS · Aave V3 · Chainlink
 
-```shell
-$ cast <subcommand>
-```
+🚀 Quick Start
+bash
+git clone https://github.com/higorfernandohf0-lgtm/AETHER-PROTOCOL.git
+cd AETHER-PROTOCOL
+forge install
+forge build
+forge test
+📄 License
+MIT
 
-### Help
+text
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+### 🚀 O que fazer agora:
+1. Cole isso no GitHub (substituindo o texto que está lá).
+2. Clique em **"Commit changes..."**.
+3. Uma mensagem de commit como `docs: add complete README with Sepolia addresses` fica ótima.
+
+Quando terminar, me avise que o portfólio está oficialmente atualizado. Depois disso, partimos para o próximo passo do seu plano de 6 meses (visibilidade e networking).
