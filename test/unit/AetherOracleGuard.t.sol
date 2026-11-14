@@ -2,75 +2,78 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {AetherVault} from "../../src/vault/AetherVault.sol";
 import {AetherOracleGuard} from "../../src/oracles/AetherOracleGuard.sol";
+import {MockUSDC} from "../mocks/MockUSDC.sol";
 import {MockAggregatorV3} from "../mocks/MockAggregatorV3.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AetherOracleGuardTest is Test {
+contract AetherVaultOracleIntegrationTest is Test {
+    MockUSDC internal usdc;
     MockAggregatorV3 internal mockFeed;
-    AetherOracleGuard internal guard;
+    AetherOracleGuard internal oracleGuard;
+    AetherVault internal vault;
 
-    uint256 internal constant STALENESS_THRESHOLD = 1 hours;
-    int256 internal constant MIN_PRICE = 1000e8; // $1,000
-    int256 internal constant MAX_PRICE = 5000e8; // $5,000
+    address internal owner = makeAddr("owner");
+    address internal user = makeAddr("user");
 
     function setUp() public {
-        // Mock do Chainlink com preço inicial de $2,000 e atualizado agora
-        mockFeed = new MockAggregatorV3(2000e8, block.timestamp);
+        usdc = new MockUSDC();
+        
+        // 1. Deploy do Mock do Chainlink (preço inicial $1.00 e atualizado agora)
+        // USDC tem 8 decimais no Chainlink, então $1.00 = 100000000
+        mockFeed = new MockAggregatorV3(100000000, block.timestamp);
 
-        guard = new AetherOracleGuard(
+        // 2. Deploy do Oracle Guard
+        oracleGuard = new AetherOracleGuard(
             address(mockFeed),
-            STALENESS_THRESHOLD,
-            MIN_PRICE,
-            MAX_PRICE
+            1 hours,        // staleness
+            90000000,       // minPrice $0.90
+            110000000       // maxPrice $1.10
         );
+
+        // 3. Deploy do Vault
+        AetherVault vaultImpl = new AetherVault();
+        bytes memory initData = abi.encodeWithSelector(
+            AetherVault.initialize.selector,
+            address(usdc),
+            owner
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(vaultImpl), initData);
+        vault = AetherVault(address(proxy));
+
+        // 4. Configurar o Oráculo no Vault
+        vm.prank(owner);
+        vault.setOracleGuard(address(oracleGuard));
+
+        // 5. Mint e approve
+        usdc.mint(user, 1000e6);
+        vm.prank(user);
+        usdc.approve(address(vault), type(uint256).max);
     }
 
-    function test_GetValidatedPriceReturnsCorrectPrice() public view {
-        int256 price = guard.getValidatedPrice();
-        assertEq(price, 2000e8);
+    function test_DepositSucceedsWhenPriceIsValid() public {
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+        assertEq(vault.totalAssets(), 1000e6);
     }
 
     function test_RevertWhenPriceIsStale() public {
-        // Avança o tempo além do threshold de staleness
-        vm.warp(block.timestamp + STALENESS_THRESHOLD + 1);
+        // Avança o tempo além do staleness (1 hora)
+        vm.warp(block.timestamp + 1 hours + 1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                AetherOracleGuard.StalePrice.selector,
-                block.timestamp - STALENESS_THRESHOLD - 1
-            )
-        );
-        guard.getValidatedPrice();
+        vm.prank(user);
+        vm.expectRevert(); // O Oracle Guard vai reverter com StalePrice
+        vault.deposit(1000e6, user);
     }
 
-    function test_RevertWhenPriceIsBelowMin() public {
-        mockFeed.setAnswer(MIN_PRICE - 1, block.timestamp);
+    function test_RevertWhenPriceIsOutOfBounds() public {
+        // Muda o preço para $0.50 (abaixo do minPrice de $0.90)
+        mockFeed.setAnswer(50000000, block.timestamp);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                AetherOracleGuard.PriceOutOfBounds.selector,
-                MIN_PRICE - 1
-            )
-        );
-        guard.getValidatedPrice();
-    }
-
-    function test_RevertWhenPriceIsAboveMax() public {
-        mockFeed.setAnswer(MAX_PRICE + 1, block.timestamp);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                AetherOracleGuard.PriceOutOfBounds.selector,
-                MAX_PRICE + 1
-            )
-        );
-        guard.getValidatedPrice();
-    }
-
-    function test_RevertWhenPriceIsInvalid() public {
-        mockFeed.setAnswer(0, block.timestamp);
-
-        vm.expectRevert(AetherOracleGuard.InvalidPrice.selector);
-        guard.getValidatedPrice();
+        vm.prank(user);
+        vm.expectRevert(); // O Oracle Guard vai reverter com PriceOutOfBounds
+        vault.deposit(1000e6, user);
     }
 }

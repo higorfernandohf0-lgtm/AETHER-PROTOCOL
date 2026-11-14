@@ -9,11 +9,15 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// Interface mínima da Estratégia
+// Interfaces
 interface IAaveStrategy {
     function supply(uint256 amount) external;
     function withdraw(uint256 amount) external returns (uint256);
     function totalAssets() external view returns (uint256);
+}
+
+interface IOracleGuard {
+    function getValidatedPrice() external view returns (int256);
 }
 
 contract AetherVault is
@@ -26,10 +30,12 @@ contract AetherVault is
     using SafeERC20 for IERC20;
 
     IAaveStrategy public strategy;
-    uint256 public allocationCap; // Limite máximo que pode ir para a estratégia (em USDC)
+    IOracleGuard public oracleGuard;
+    uint256 public allocationCap;
 
     // Eventos
     event StrategySet(address indexed strategy);
+    event OracleGuardSet(address indexed oracleGuard);
     event Allocated(uint256 amount);
     event Deallocated(uint256 amount);
     event EmergencyWithdraw(uint256 amount);
@@ -54,7 +60,7 @@ contract AetherVault is
         __Pausable_init();
     }
 
-    // --- Funções de Estratégia ---
+    // --- Funções de Configuração ---
 
     function setStrategy(address _strategy) external onlyOwner {
         require(_strategy != address(0), "Invalid strategy");
@@ -62,10 +68,18 @@ contract AetherVault is
         emit StrategySet(_strategy);
     }
 
+    function setOracleGuard(address _oracleGuard) external onlyOwner {
+        require(_oracleGuard != address(0), "Invalid oracle");
+        oracleGuard = IOracleGuard(_oracleGuard);
+        emit OracleGuardSet(_oracleGuard);
+    }
+
     function setAllocationCap(uint256 _cap) external onlyOwner {
         allocationCap = _cap;
         emit AllocationCapSet(_cap);
     }
+
+    // --- Funções de Estratégia ---
 
     function allocate(uint256 amount) external onlyOwner {
         require(address(strategy) != address(0), "Strategy not set");
@@ -90,7 +104,6 @@ contract AetherVault is
         emit Deallocated(amount);
     }
 
-    /// @notice Puxa TODO o capital da estratégia de volta para o Vault em caso de emergência
     function emergencyWithdraw() external onlyOwner {
         require(address(strategy) != address(0), "Strategy not set");
         
@@ -101,6 +114,8 @@ contract AetherVault is
             emit EmergencyWithdraw(strategyBalance);
         }
     }
+
+    // --- Lógica Principal (ERC-4626) ---
 
     function totalAssets() public view override returns (uint256) {
         uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
@@ -113,21 +128,20 @@ contract AetherVault is
         return vaultBalance + strategyBalance;
     }
 
-    // --- Controles de Emergência ---
-
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    // --- Proteção com Oráculo ---
 
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
+        // Verifica o preço antes de aceitar o depósito (se o oráculo estiver configurado)
+        if (address(oracleGuard) != address(0)) {
+            oracleGuard.getValidatedPrice(); // Reverte se o preço estiver ruim
+        }
         return super.deposit(assets, receiver);
     }
 
     function mint(uint256 shares, address receiver) public override whenNotPaused returns (uint256) {
+        if (address(oracleGuard) != address(0)) {
+            oracleGuard.getValidatedPrice();
+        }
         return super.mint(shares, receiver);
     }
 
@@ -139,6 +153,16 @@ contract AetherVault is
     function maxMint(address receiver) public view override returns (uint256) {
         if (paused()) return 0;
         return super.maxMint(receiver);
+    }
+
+    // --- Controles de Emergência ---
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function _decimalsOffset() internal pure override returns (uint8) {
