@@ -4,66 +4,80 @@
 
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-blue)]()
 [![Foundry](https://img.shields.io/badge/Built%20with-Foundry-orange)]()
-[![Tests](https://img.shields.io/badge/Tests-51%20passing-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/Coverage-84.5%25-yellow)]()
+[![Tests](https://img.shields.io/badge/Tests-56%20passing-brightgreen)]()
 [![Sepolia](https://img.shields.io/badge/Deployed-Sepolia-purple)]()
 
 ---
 
 ## 📌 Status
 
-| Module | Status | Sepolia Address |
-| :--- | :--- | :--- |
-| ERC-4626 Vault | ✅ Implemented & Tested | — |
-| AetherToken (ERC20Votes) | ✅ Deployed | `0xB6127998eb92e233DBC25C008b788e174BAE8d5F` |
-| TimelockController | ✅ Deployed | `0x36b4d40384e974d3067050111cfB5F823FCBf1Ed` |
-| AetherGovernor | ✅ Deployed | `0x3B17E7f41Ec5B84c028d5E94F2F28dC9968a66EC` |
-| Aave V3 Strategy | ✅ Compiled | — |
-| Oracle Guard (Chainlink) | ✅ Compiled | — |
-| Flash Loan Executor | ✅ Compiled | — |
-| Coverage Validation | ✅ 84.5% | — |
-| Audit & Final Deployment | ⬜ Planned | — |
+| Module | Status | Description |
+|--------|--------|-------------|
+| ERC-4626 Vault | ✅ Implemented & Tested | Yield-bearing vault with Aave integration |
+| AetherToken (ERC20Votes) | ✅ Deployed | Governance token |
+| TimelockController | ✅ Deployed | 2-day delay executor |
+| AetherGovernor | ✅ Deployed | Proposal and voting system |
+| Aave V3 Strategy | ✅ Integrated | Allocates capital to Aave V3 |
+| Oracle Guard (Chainlink) | ✅ Integrated | Blocks deposits on stale/manipulated prices |
+| Flash Loan Executor | 🟡 Experimental | Proof of Concept for future arbitrage/liquidations |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Flow
 
-```mermaid
-graph TD
-    A[ERC-4626 Vault] --> B[UUPS Proxy]
-    A --> C[Oracle Guard - Chainlink]
-    A --> D[Aave V3 Strategy]
-    A --> E[Flash Loan Executor]
-    F[Governance: Token + Governor + Timelock] --> A
-🧪 Test Results
-51 automated tests passing (unit, fuzz, and invariant tests)
+**Deposit Flow:**
+1. User deposits USDC into the Vault (ERC-4626).
+2. Vault consults the Oracle Guard to validate the USDC price (Chainlink).
+3. Vault mints shares to the user.
+4. Owner/Governance calls `allocate()` to send idle capital to the Aave Strategy.
+5. The Strategy supplies the USDC to Aave V3 and receives aTokens.
 
-128,000 invariant handler calls without reverts
+**Governance Flow:**
+1. Token holders propose changes via the Governor.
+2. Voting occurs over 1 week.
+3. Approved proposals are queued in the Timelock (2-day delay).
+4. The Timelock executes the action on the Vault.
 
-84.5% test coverage (lines)
+---
 
-Protection against ERC-4626 share inflation via _decimalsOffset()
+## 🧪 Test Results
 
-🔐 Security Features
-UUPS upgradeability with Ownable2StepUpgradeable
+- **56 automated tests passing** (unit, fuzz, invariant, and integration tests).
+- **128,000 invariant handler calls** without reverts.
+- Protection against ERC-4626 share inflation via `_decimalsOffset()`.
 
-Share inflation protection (_decimalsOffset())
+---
 
-Emergency pause (deposits/mint) while keeping withdrawals available
+## 🔐 Security Features
 
-Proxy initialization (implementation cannot be initialized directly)
+- **UUPS Upgradeability** controlled by `Ownable2Step`.
+- **Share Inflation Protection** via `_decimalsOffset()`.
+- **Emergency Pause** (deposits/mint halted, withdrawals remain active).
+- **Allocation Cap**: Limits the maximum capital sent to the Aave strategy.
+- **Emergency Withdraw**: Allows the owner to pull all funds from Aave in a crisis.
+- **Oracle Guard**: Blocks deposits if the price is stale or out of bounds.
+- **Automated Testing**: CI/CD via GitHub Actions.
 
-Governance-controlled upgrades via Timelock (2-day delay)
+---
 
-Chainlink Oracle Guard with staleness and price bounds validation
+## ⚠️ Known Limitations & Risks
 
-Unit, fuzz, and invariant testing with Foundry
+1. **Oracle Dependency**: The Vault relies on Chainlink for USDC price validation. If the oracle is compromised or unavailable, deposits may be blocked. (Mitigation: the guard only blocks deposits, not withdrawals).
+2. **Aave Smart Contract Risk**: Capital allocated to Aave is subject to the risks of the Aave protocol (e.g., smart contract bugs, liquidity crunches).
+3. **Flash Loan Executor**: This module is currently a **Proof of Concept**. It demonstrates how to receive and repay a flash loan, but does not yet implement a profitable arbitrage or liquidation strategy. It is not intended for production use in its current state.
+4. **Centralization**: The Vault owner is currently an EOA (Externally Owned Account). The next step is to transfer ownership to the TimelockController for full decentralization.
 
-🛠️ Tech Stack
+---
+
+## 🛠️ Tech Stack
+
 Solidity 0.8.24 · Foundry · OpenZeppelin · ERC-4626 · UUPS · Aave V3 · Chainlink
 
-🚀 Quick Start
-bash
+---
+
+## 🚀 Quick Start
+
+```bash
 git clone https://github.com/higorfernandohf0-lgtm/AETHER-PROTOCOL.git
 cd AETHER-PROTOCOL
 forge install
