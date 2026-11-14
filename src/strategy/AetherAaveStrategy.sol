@@ -40,6 +40,9 @@ contract AetherAaveStrategy is Ownable {
 
         // Aprova o Aave Pool para gastar o USDC
         asset.forceApprove(_aavePool, type(uint256).max);
+        
+        // Aprova o owner (Vault) a puxar os fundos de volta após o withdraw
+        asset.forceApprove(initialOwner, type(uint256).max);
     }
 
     /// @notice Deposita ativos no Aave
