@@ -9,7 +9,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// Interfaces
 interface IAaveStrategy {
     function supply(uint256 amount) external;
     function withdraw(uint256 amount) external returns (uint256);
@@ -33,7 +32,6 @@ contract AetherVault is
     IOracleGuard public oracleGuard;
     uint256 public allocationCap;
 
-    // Eventos
     event StrategySet(address indexed strategy);
     event OracleGuardSet(address indexed oracleGuard);
     event Allocated(uint256 amount);
@@ -60,8 +58,6 @@ contract AetherVault is
         __Pausable_init();
     }
 
-    // --- Funções de Configuração ---
-
     function setStrategy(address _strategy) external onlyOwner {
         require(_strategy != address(0), "Invalid strategy");
         strategy = IAaveStrategy(_strategy);
@@ -78,8 +74,6 @@ contract AetherVault is
         allocationCap = _cap;
         emit AllocationCapSet(_cap);
     }
-
-    // --- Funções de Estratégia ---
 
     function allocate(uint256 amount) external onlyOwner {
         require(address(strategy) != address(0), "Strategy not set");
@@ -115,8 +109,6 @@ contract AetherVault is
         }
     }
 
-    // --- Lógica Principal (ERC-4626) ---
-
     function totalAssets() public view override returns (uint256) {
         uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
         uint256 strategyBalance = 0;
@@ -128,12 +120,9 @@ contract AetherVault is
         return vaultBalance + strategyBalance;
     }
 
-    // --- Proteção com Oráculo ---
-
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
-        // Verifica o preço antes de aceitar o depósito (se o oráculo estiver configurado)
         if (address(oracleGuard) != address(0)) {
-            oracleGuard.getValidatedPrice(); // Reverte se o preço estiver ruim
+            oracleGuard.getValidatedPrice();
         }
         return super.deposit(assets, receiver);
     }
@@ -154,8 +143,6 @@ contract AetherVault is
         if (paused()) return 0;
         return super.maxMint(receiver);
     }
-
-    // --- Controles de Emergência ---
 
     function pause() external onlyOwner {
         _pause();
