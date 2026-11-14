@@ -26,11 +26,14 @@ contract AetherVault is
     using SafeERC20 for IERC20;
 
     IAaveStrategy public strategy;
+    uint256 public allocationCap; // Limite máximo que pode ir para a estratégia (em USDC)
 
     // Eventos
     event StrategySet(address indexed strategy);
     event Allocated(uint256 amount);
     event Deallocated(uint256 amount);
+    event EmergencyWithdraw(uint256 amount);
+    event AllocationCapSet(uint256 cap);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -59,10 +62,18 @@ contract AetherVault is
         emit StrategySet(_strategy);
     }
 
+    function setAllocationCap(uint256 _cap) external onlyOwner {
+        allocationCap = _cap;
+        emit AllocationCapSet(_cap);
+    }
+
     function allocate(uint256 amount) external onlyOwner {
         require(address(strategy) != address(0), "Strategy not set");
         require(amount > 0, "Amount must be > 0");
         
+        uint256 currentStrategyBalance = strategy.totalAssets();
+        require(currentStrategyBalance + amount <= allocationCap, "Exceeds allocation cap");
+
         IERC20(asset()).safeTransfer(address(strategy), amount);
         strategy.supply(amount);
         emit Allocated(amount);
@@ -72,14 +83,23 @@ contract AetherVault is
         require(address(strategy) != address(0), "Strategy not set");
         require(amount > 0, "Amount must be > 0");
         
-        // 1. Manda a estratégia sacar do Aave (o dinheiro vai para a Estratégia)
         uint256 withdrawn = strategy.withdraw(amount);
         require(withdrawn == amount, "Withdraw failed");
 
-        // 2. Puxa o dinheiro da Estratégia de volta para o Vault
         IERC20(asset()).safeTransferFrom(address(strategy), address(this), amount);
-
         emit Deallocated(amount);
+    }
+
+    /// @notice Puxa TODO o capital da estratégia de volta para o Vault em caso de emergência
+    function emergencyWithdraw() external onlyOwner {
+        require(address(strategy) != address(0), "Strategy not set");
+        
+        uint256 strategyBalance = strategy.totalAssets();
+        if (strategyBalance > 0) {
+            strategy.withdraw(strategyBalance);
+            IERC20(asset()).safeTransferFrom(address(strategy), address(this), strategyBalance);
+            emit EmergencyWithdraw(strategyBalance);
+        }
     }
 
     function totalAssets() public view override returns (uint256) {

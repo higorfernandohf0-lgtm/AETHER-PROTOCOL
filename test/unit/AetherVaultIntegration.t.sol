@@ -43,9 +43,11 @@ contract AetherVaultIntegrationTest is Test {
             address(vault)
         );
 
-        // 3. Configurar estratégia no Vault
-        vm.prank(owner);
+        // 3. Configurar estratégia e limite no Vault
+        vm.startPrank(owner);
         vault.setStrategy(address(strategy));
+        vault.setAllocationCap(1000e6); // Define o limite para 1000 USDC
+        vm.stopPrank();
 
         // 4. Mint e approve
         usdc.mint(user, 1000e6);
@@ -59,13 +61,10 @@ contract AetherVaultIntegrationTest is Test {
         assertEq(vault.totalAssets(), 1000e6);
 
         vm.prank(owner);
-        vault.allocate(500e6);
+        vault.allocate(500e6); // Agora funciona porque o cap é 1000e6
 
-        // O dinheiro saiu do Vault e foi para o AavePool (via Estratégia)
         assertEq(usdc.balanceOf(address(vault)), 500e6);
-        assertEq(usdc.balanceOf(address(aavePool)), 500e6); // <-- Verifica o Pool
-        
-        // O totalAssets() deve somar o saldo do Vault + o saldo da Estratégia (que no mock lê do Pool)
+        assertEq(usdc.balanceOf(address(aavePool)), 500e6);
         assertEq(vault.totalAssets(), 1000e6);
     }
 
@@ -78,10 +77,33 @@ contract AetherVaultIntegrationTest is Test {
         vm.prank(owner);
         vault.deallocate(300e6);
 
-        // O dinheiro saiu do AavePool e voltou para o Vault
         assertEq(usdc.balanceOf(address(vault)), 800e6);
-        assertEq(usdc.balanceOf(address(aavePool)), 200e6); // <-- Verifica o Pool
-        
+        assertEq(usdc.balanceOf(address(aavePool)), 200e6);
+        assertEq(vault.totalAssets(), 1000e6);
+    }
+
+    function test_RevertWhenExceedingCap() public {
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+
+        // Tenta alocar 1500 USDC, mas o cap é 1000 USDC
+        vm.prank(owner);
+        vm.expectRevert("Exceeds allocation cap");
+        vault.allocate(1500e6);
+    }
+
+    function test_EmergencyWithdraw() public {
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+        vm.prank(owner);
+        vault.allocate(500e6);
+
+        // Emergência: puxa tudo de volta
+        vm.prank(owner);
+        vault.emergencyWithdraw();
+
+        assertEq(usdc.balanceOf(address(vault)), 1000e6);
+        assertEq(usdc.balanceOf(address(aavePool)), 0);
         assertEq(vault.totalAssets(), 1000e6);
     }
 }
